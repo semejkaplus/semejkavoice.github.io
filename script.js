@@ -1,4 +1,3 @@
-// Подключение к твоему личному серверу сигналов на Hugging Face Spaces
 const peer = new Peer({
     host: 'mrkricalo-semejka-voice-server.hf.space', 
     port: 443, 
@@ -9,6 +8,7 @@ const peer = new Peer({
 let localStream = null;
 let currentCall = null;
 let isMuted = false;
+let incomingCallData = null;
 
 const mainScreen = document.getElementById('mainScreen');
 const callScreen = document.getElementById('callScreen');
@@ -21,30 +21,26 @@ const statusText = document.getElementById('status');
 const avatarBox = document.getElementById('avatarBox');
 const remoteAudio = document.getElementById('remote-audio');
 
-// Запрашиваем доступ к микрофону
+// Элементы модального окна
+const incomingModal = document.getElementById('incomingModal');
+const answerBtn = document.getElementById('answer-btn');
+const declineBtn = document.getElementById('decline-btn');
+
 navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     .then(stream => {
         localStream = stream;
     })
     .catch(err => {
         alert('Нужен доступ к микрофону для совершения звонков.');
-        console.error('Ошибка доступа к микрофону:', err);
     });
 
-// Успешное подключение к твоему серверу Hugging Face и получение ID
 peer.on('open', id => {
     myIdEl.innerText = id;
 });
 
-// Обработка ошибок соединения
 peer.on('error', err => {
     console.error('Ошибка PeerJS:', err);
-    if (err.type === 'peer-unavailable') {
-        alert('Не удалось найти собеседника с таким ID. Проверьте правильность ввода.');
-        resetCallSession();
-    } else {
-        alert('Ошибка связи с сервером. Попробуйте обновить страницу.');
-    }
+    resetCallSession();
 });
 
 // Кнопка "Позвонить"
@@ -61,16 +57,34 @@ callBtn.addEventListener('click', () => {
     handleCallLogic(call);
 });
 
-// Обработка входящего вызова (Автоответчик)
+// Поймали входящий звонок — показываем окно «Принять/Отклонить»
 peer.on('call', call => {
     if (!localStream) return;
     
-    call.answer(localStream);
-    showScreen('call');
-    statusText.innerText = 'Входящий звонок...';
-    avatarBox.classList.add('calling');
-    
-    handleCallLogic(call);
+    incomingCallData = call;
+    incomingModal.classList.add('active'); // Показываем окно
+});
+
+// Нажали «Принять» (Тап по экрану дает браузеру право включить звук!)
+answerBtn.addEventListener('click', () => {
+    if (incomingCallData) {
+        incomingModal.classList.remove('active');
+        showScreen('call');
+        statusText.innerText = 'Разговор...';
+        avatarBox.classList.add('calling');
+        
+        incomingCallData.answer(localStream);
+        handleCallLogic(incomingCallData);
+    }
+});
+
+// Нажали «Отклонить»
+declineBtn.addEventListener('click', () => {
+    if (incomingCallData) {
+        incomingCallData.close();
+    }
+    incomingModal.classList.remove('active');
+    incomingCallData = null;
 });
 
 function handleCallLogic(call) {
@@ -78,6 +92,8 @@ function handleCallLogic(call) {
 
     call.on('stream', remoteStream => {
         remoteAudio.srcObject = remoteStream;
+        // Принудительный старт для мобилок
+        remoteAudio.play().catch(e => console.log("Автозапуск заблокирован, нужен клик"));
         statusText.innerText = 'Разговор...';
     });
 
@@ -94,31 +110,22 @@ muteBtn.addEventListener('click', () => {
     if (localStream) {
         isMuted = !isMuted;
         localStream.getAudioTracks()[0].enabled = !isMuted;
-        
-        if (isMuted) {
-            muteBtn.innerText = 'Вкл. микро';
-            muteBtn.classList.add('muted');
-        } else {
-            muteBtn.innerText = 'Выкл. micro';
-            muteBtn.classList.remove('muted');
-        }
+        muteBtn.innerText = isMuted ? 'Вкл. микро' : 'Выкл. микро';
+        if (isMuted) muteBtn.classList.add('muted'); else muteBtn.classList.remove('muted');
     }
 });
 
 function showScreen(type) {
-    if (type === 'main') {
-        mainScreen.classList.add('active');
-        callScreen.classList.remove('active');
-    } else {
-        mainScreen.classList.remove('active');
-        callScreen.classList.add('active');
-    }
+    mainScreen.classList.toggle('active', type === 'main');
+    callScreen.classList.toggle('active', type === 'call');
 }
 
 function resetCallSession() {
     currentCall = null;
+    incomingCallData = null;
     avatarBox.classList.remove('calling');
     remoteAudio.srcObject = null;
+    incomingModal.classList.remove('active');
     showScreen('main');
     isMuted = false;
     if (localStream) localStream.getAudioTracks()[0].enabled = true;
