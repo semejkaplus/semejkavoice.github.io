@@ -53,6 +53,14 @@
         .btn-mute { background: linear-gradient(135deg, #4A4A5A, #6A6A7A); }
         .btn-mute.muted { background: linear-gradient(135deg, #f64f59, #c471ed); }
         .btn-hangup { background: linear-gradient(135deg, #EB8680, #E67D76); }
+        
+        /* Стили окна входящего звонка */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 10;
+        }
+        .modal.active { display: flex; }
+        .btn-answer { background: linear-gradient(135deg, #4CAF50, #81C784); margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -80,7 +88,16 @@
         </div>
     </div>
 
-    <audio id="remote-audio" autoplay></audio>
+    <div id="incomingModal" class="modal">
+        <div class="box">
+            <h1>Входящий звонок</h1>
+            <p style="margin-bottom: 25px;">Вам звонят в SEMEJKA VOICE...</p>
+            <button id="answer-btn" class="btn-answer">Принять</button>
+            <button id="decline-btn" class="btn-hangup">Отклонить</button>
+        </div>
+    </div>
+
+    <audio id="remote-audio" autoplay playsinline></audio>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="script.js"></script>
 </body>
