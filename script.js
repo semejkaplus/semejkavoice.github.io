@@ -1,4 +1,20 @@
-const peer = new Peer(); 
+// Конфигурация с альтернативным сигнальным сервером и STUN-серверами Google
+const peer = new Peer({
+    host: 'peerjs.metered.ca', 
+    port: 443, 
+    secure: true,
+    path: '/',
+    config: {
+        'iceServers': [
+            { url: 'stun:stun.l.google.com:19302' },
+            { url: 'stun:stun1.l.google.com:19302' },
+            { url: 'stun:stun2.l.google.com:19302' },
+            { url: 'stun:stun3.l.google.com:19302' },
+            { url: 'stun:stun4.l.google.com:19302' }
+        ]
+    }
+});
+
 let localStream = null;
 let currentCall = null;
 let isMuted = false;
@@ -21,11 +37,21 @@ navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     })
     .catch(err => {
         alert('Нужен доступ к микрофону для совершения звонков.');
+        console.error(err);
     });
 
-// Получаем ID от бесплатного сервера PeerJS
+// Получаем ID от нового рабочего сервера
 peer.on('open', id => {
     myIdEl.innerText = id;
+});
+
+// Обработка ошибок подключения к серверу
+peer.on('error', err => {
+    console.error('Ошибка PeerJS:', err);
+    if (err.type === 'peer-unavailable') {
+        alert('Не удалось найти собеседника с таким ID. Проверьте правильность ввода.');
+        resetCallSession();
+    }
 });
 
 // Кнопка "Позвонить"
