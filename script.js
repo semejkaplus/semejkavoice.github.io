@@ -1,8 +1,28 @@
+// Полная конфигурация со STUN и TURN серверами для обхода любого NAT (домашнего и мобильного)
 const peer = new Peer({
     host: 'mrkricalo-semejka-voice-server.hf.space', 
     port: 443, 
     secure: true,
-    path: '/'
+    path: '/',
+    config: {
+        'iceServers': [
+            { url: 'stun:stun.l.google.com:19302' },
+            { url: 'stun:stun1.l.google.com:19302' },
+            { url: 'stun:stun2.l.google.com:19302' },
+            // Бесплатные TURN-сервера для обхода жестких ограничений провайдеров
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject'
+            }
+        ],
+        'iceTransportPolicy': 'all'
+    }
 });
 
 let localStream = null;
@@ -21,17 +41,17 @@ const statusText = document.getElementById('status');
 const avatarBox = document.getElementById('avatarBox');
 const remoteAudio = document.getElementById('remote-audio');
 
-// Элементы модального окна
 const incomingModal = document.getElementById('incomingModal');
 const answerBtn = document.getElementById('answer-btn');
 const declineBtn = document.getElementById('decline-btn');
 
+// Запрашиваем микрофон
 navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     .then(stream => {
         localStream = stream;
     })
     .catch(err => {
-        alert('Нужен доступ к микрофону для совершения звонков.');
+        alert('Нужен доступ к микрофону для работы SEMEJKA VOICE.');
     });
 
 peer.on('open', id => {
@@ -43,11 +63,18 @@ peer.on('error', err => {
     resetCallSession();
 });
 
+function initMobileAudio() {
+    remoteAudio.play().catch(() => {});
+    remoteAudio.pause();
+}
+
 // Кнопка "Позвонить"
 callBtn.addEventListener('click', () => {
     const friendId = peerIdInput.value.trim();
     if (!friendId) return alert('Введите ID друга!');
     if (!localStream) return alert('Микрофон еще не готов.');
+
+    initMobileAudio();
 
     showScreen('call');
     statusText.innerText = 'Набор номера...';
@@ -57,20 +84,21 @@ callBtn.addEventListener('click', () => {
     handleCallLogic(call);
 });
 
-// Поймали входящий звонок — показываем окно «Принять/Отклонить»
+// Входящий вызов
 peer.on('call', call => {
     if (!localStream) return;
-    
     incomingCallData = call;
-    incomingModal.classList.add('active'); // Показываем окно
+    incomingModal.classList.add('active');
 });
 
-// Нажали «Принять» (Тап по экрану дает браузеру право включить звук!)
+// Кнопка "Принять"
 answerBtn.addEventListener('click', () => {
     if (incomingCallData) {
+        initMobileAudio();
+
         incomingModal.classList.remove('active');
         showScreen('call');
-        statusText.innerText = 'Разговор...';
+        statusText.innerText = 'Соединение...';
         avatarBox.classList.add('calling');
         
         incomingCallData.answer(localStream);
@@ -78,7 +106,7 @@ answerBtn.addEventListener('click', () => {
     }
 });
 
-// Нажали «Отклонить»
+// Кнопка "Отклонить"
 declineBtn.addEventListener('click', () => {
     if (incomingCallData) {
         incomingCallData.close();
@@ -92,9 +120,14 @@ function handleCallLogic(call) {
 
     call.on('stream', remoteStream => {
         remoteAudio.srcObject = remoteStream;
-        // Принудительный старт для мобилок
-        remoteAudio.play().catch(e => console.log("Автозапуск заблокирован, нужен клик"));
-        statusText.innerText = 'Разговор...';
+        remoteAudio.play()
+            .then(() => {
+                statusText.innerText = 'Разговор...';
+            })
+            .catch(e => {
+                console.error("Ошибка воспроизведения:", e);
+                statusText.innerText = 'Разговор (нажмите на экран для звука)';
+            });
     });
 
     call.on('close', () => { resetCallSession(); });
@@ -111,7 +144,7 @@ muteBtn.addEventListener('click', () => {
         isMuted = !isMuted;
         localStream.getAudioTracks()[0].enabled = !isMuted;
         muteBtn.innerText = isMuted ? 'Вкл. микро' : 'Выкл. микро';
-        if (isMuted) muteBtn.classList.add('muted'); else muteBtn.classList.remove('muted');
+        muteBtn.classList.toggle('muted', isMuted);
     }
 });
 
@@ -121,6 +154,11 @@ function showScreen(type) {
 }
 
 function resetCallSession() {
+    if (currentCall) {
+        currentCall.off('stream');
+        currentCall.off('close');
+        currentCall.off('error');
+    }
     currentCall = null;
     incomingCallData = null;
     avatarBox.classList.remove('calling');
