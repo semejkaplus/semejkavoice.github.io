@@ -1,18 +1,9 @@
-// Конфигурация с альтернативным сигнальным сервером и STUN-серверами Google
+// Подключение к твоему личному серверу сигналов на Hugging Face Spaces
 const peer = new Peer({
-    host: 'peerjs.metered.ca', 
+    host: 'mrkricalo-semejka-voice-server.hf.space', 
     port: 443, 
     secure: true,
-    path: '/',
-    config: {
-        'iceServers': [
-            { url: 'stun:stun.l.google.com:19302' },
-            { url: 'stun:stun1.l.google.com:19302' },
-            { url: 'stun:stun2.l.google.com:19302' },
-            { url: 'stun:stun3.l.google.com:19302' },
-            { url: 'stun:stun4.l.google.com:19302' }
-        ]
-    }
+    path: '/'
 });
 
 let localStream = null;
@@ -30,27 +21,29 @@ const statusText = document.getElementById('status');
 const avatarBox = document.getElementById('avatarBox');
 const remoteAudio = document.getElementById('remote-audio');
 
-// Запрашиваем только микрофон
+// Запрашиваем доступ к микрофону
 navigator.mediaDevices.getUserMedia({ audio: true, video: false })
     .then(stream => {
         localStream = stream;
     })
     .catch(err => {
         alert('Нужен доступ к микрофону для совершения звонков.');
-        console.error(err);
+        console.error('Ошибка доступа к микрофону:', err);
     });
 
-// Получаем ID от нового рабочего сервера
+// Успешное подключение к твоему серверу Hugging Face и получение ID
 peer.on('open', id => {
     myIdEl.innerText = id;
 });
 
-// Обработка ошибок подключения к серверу
+// Обработка ошибок соединения
 peer.on('error', err => {
     console.error('Ошибка PeerJS:', err);
     if (err.type === 'peer-unavailable') {
         alert('Не удалось найти собеседника с таким ID. Проверьте правильность ввода.');
         resetCallSession();
+    } else {
+        alert('Ошибка связи с сервером. Попробуйте обновить страницу.');
     }
 });
 
@@ -68,11 +61,11 @@ callBtn.addEventListener('click', () => {
     handleCallLogic(call);
 });
 
-// Обработка входящего вызова
+// Обработка входящего вызова (Автоответчик)
 peer.on('call', call => {
     if (!localStream) return;
     
-    call.answer(localStream); // Автоответчик
+    call.answer(localStream);
     showScreen('call');
     statusText.innerText = 'Входящий звонок...';
     avatarBox.classList.add('calling');
